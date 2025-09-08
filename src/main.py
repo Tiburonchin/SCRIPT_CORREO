@@ -1,6 +1,7 @@
 import argparse
 import time
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -89,23 +90,36 @@ def main():
     ok = 0
     fail = 0
 
+    log_path = Path("correos_enviados.txt")
+    log_file = None
+    if not args.dry_run:
+        log_file = open(log_path, "a", encoding="utf-8")
+
     for row in contacts:
         total += 1
+        subject = renderer.render_text(args.subject, row)
         try:
-            subject = renderer.render_text(args.subject, row)
             html = renderer.render(row)
-
             if args.dry_run:
                 console.print(f"[cyan][DRY-RUN][/cyan] A: {row.get('Correo')} | Asunto: {subject}")
             else:
                 assert mailer is not None
                 mailer.send_email(to=row.get("Correo"), subject=subject, html=html)
                 console.print(f"[green]Enviado[/green] ➜ {row.get('Correo')}")
+                # Log enviado
+                if log_file:
+                    log_file.write(f"{datetime.now():%Y-%m-%d %H:%M:%S}\tENVIADO\t{row.get('Correo')}\t{subject}\n")
                 time.sleep(max(0.0, args.rate_limit))
             ok += 1
         except Exception as e:
             fail += 1
             console.print(f"[red]Error con {row.get('Correo')}: {e}")
+            # Log error
+            if log_file:
+                log_file.write(f"{datetime.now():%Y-%m-%d %H:%M:%S}\tERROR\t{row.get('Correo')}\t{subject}\t{e}\n")
+
+    if log_file:
+        log_file.close()
 
     console.print(f"\n[bold]Resumen:[/bold] total={total}, ok={ok}, fail={fail}")
 
